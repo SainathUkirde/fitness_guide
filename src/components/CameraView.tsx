@@ -19,6 +19,7 @@ interface Props {
   mirrored: boolean;
   onMirrorToggle: () => void;
   onCameraReady?: () => void;
+  onSwitchToDemo?: () => void;
   selectedCamera?: string;
 }
 
@@ -28,6 +29,7 @@ export const CameraView: React.FC<Props> = ({
   mirrored,
   onMirrorToggle,
   onCameraReady,
+  onSwitchToDemo,
   selectedCamera,
 }) => {
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -91,15 +93,31 @@ export const CameraView: React.FC<Props> = ({
     setPoseLoading(false);
     setErrorMsg('');
     try {
-      const constraints: MediaStreamConstraints = {
-        video: {
-          width: { ideal: 640 },
-          height: { ideal: 480 },
-          facingMode: 'user',
-          ...(selectedCamera ? { deviceId: { exact: selectedCamera } } : {}),
-        },
+      // Wrap getUserMedia in a 15-second timeout so we never hang forever
+      const getUserMediaWithTimeout = (): Promise<MediaStream> => {
+        return new Promise((resolve, reject) => {
+          const timer = setTimeout(() => {
+            reject(new DOMException('Camera took too long to start. Close other apps using the camera and try again.', 'TimeoutError'));
+          }, 15000);
+          const constraints: MediaStreamConstraints = {
+            video: {
+              width: { ideal: 640 },
+              height: { ideal: 480 },
+              facingMode: 'user',
+              ...(selectedCamera ? { deviceId: { exact: selectedCamera } } : {}),
+            },
+          };
+          navigator.mediaDevices.getUserMedia(constraints).then((stream) => {
+            clearTimeout(timer);
+            resolve(stream);
+          }).catch((err) => {
+            clearTimeout(timer);
+            reject(err);
+          });
+        });
       };
-      const stream = await navigator.mediaDevices.getUserMedia(constraints);
+
+      const stream = await getUserMediaWithTimeout();
       if (!mountedRef.current) {
         stream.getTracks().forEach((t) => t.stop());
         return;
@@ -126,14 +144,18 @@ export const CameraView: React.FC<Props> = ({
       setPoseLoading(false);
       const e = err as Error;
       if (e.name === 'NotAllowedError') {
-        setErrorMsg('Camera access denied. Please allow camera permissions in your browser.');
+        setErrorMsg('Camera access denied. Click the 🔒 lock icon in the address bar and set Camera to Allow, then try again.');
       } else if (e.name === 'NotFoundError') {
-        setErrorMsg('No camera found on this device.');
+        setErrorMsg('No camera found on this device. Connect a camera or use Demo Mode instead.');
       } else if (e.name === 'NotReadableError') {
-        setErrorMsg('Camera is in use by another application. Please close it and try again.');
+        setErrorMsg('Camera is in use by another app (Teams, Zoom, etc.). Close those apps and try again.');
+      } else if (e.name === 'TimeoutError') {
+        setErrorMsg(e.message);
+      } else if (e.name === 'OverconstrainedError') {
+        setErrorMsg('Camera settings not supported by this device. Try again.');
       } else {
         const loadErr = getPoseLoadError();
-        setErrorMsg(loadErr || `Camera error: ${e.message}`);
+        setErrorMsg(loadErr || `Camera error: ${e.message}. Try refreshing the page or use Demo Mode.`);
       }
       setStatus('error');
     }
@@ -218,15 +240,28 @@ export const CameraView: React.FC<Props> = ({
 
       {/* Error */}
       {status === 'error' && (
-        <div className="absolute inset-0 flex flex-col items-center justify-center bg-slate-900 px-6 text-center">
-          <CameraOff size={48} className="text-red-400 mb-4" />
-          <p className="text-red-400 text-sm font-medium mb-2">{errorMsg}</p>
-          <button
-            onClick={startCamera}
-            className="mt-3 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-medium transition-colors"
-          >
-            Try Again
-          </button>
+        <div className="absolute inset-0 flex flex-col items-center justify-center bg-slate-900 px-6 text-center gap-3">
+          <CameraOff size={48} className="text-red-400" />
+          <p className="text-red-400 text-sm font-medium leading-relaxed max-w-xs">{errorMsg}</p>
+          <div className="flex flex-col gap-2 w-full max-w-xs mt-1">
+            <button
+              onClick={startCamera}
+              className="w-full px-4 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-medium transition-colors"
+            >
+              Try Again
+            </button>
+            {onSwitchToDemo && (
+              <button
+                onClick={onSwitchToDemo}
+                className="w-full px-4 py-2.5 bg-yellow-600/80 hover:bg-yellow-600 text-white rounded-lg text-sm font-medium transition-colors"
+              >
+                ⚡ Use Demo Mode Instead
+              </button>
+            )}
+          </div>
+          <p className="text-slate-600 text-xs max-w-xs">
+            Demo Mode simulates full workout analysis without a camera.
+          </p>
         </div>
       )}
 

@@ -303,6 +303,10 @@ export const LiveWorkout: React.FC = () => {
                   onLandmarks={(lms) => { landmarksRef.current = lms; }}
                   mirrored={mirrored}
                   onMirrorToggle={() => setMirrored((m) => !m)}
+                  onSwitchToDemo={() => {
+                    setIsDemo(true);
+                    setCameraActive(false);
+                  }}
                 />
               )}
               {isDemo && (
