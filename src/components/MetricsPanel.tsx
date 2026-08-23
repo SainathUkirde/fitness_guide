@@ -63,7 +63,7 @@ export const MetricsPanel: React.FC<Props> = ({ result, isDemo }) => {
         <div className="grid grid-cols-1 gap-1 mt-3">
           {Object.entries(result.subscores).map(([key, val]) => (
             <div key={key} className="flex items-center gap-2">
-              <span className="text-slate-500 text-xs w-24 capitalize">{key.replace(/([A-Z])/g, ' $1')}</span>
+              <span className="text-slate-500 text-xs w-28 flex-shrink-0 capitalize">{key.replace(/([A-Z])/g, ' $1')}</span>
               <ScoreBar value={val} />
               <span className="text-slate-400 text-xs w-8 text-right">{val}%</span>
             </div>
